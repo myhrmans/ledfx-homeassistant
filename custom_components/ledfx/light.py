@@ -284,43 +284,43 @@ class LedFxLight(LedFxEntity, LightEntity):
         )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn on action
-
+        """Turn on action.
+    
         :param kwargs: Any: Any arguments
         """
-
-        await self._async_call(f"_{self._type}_{STATE_ON}", STATE_ON, **kwargs)
-
+        await self._async_call(f"_{self._type.value}_{STATE_ON}", STATE_ON, **kwargs)
+    
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn off action
-
+        """Turn off action.
+    
         :param kwargs: Any: Any arguments
         """
-
-        await self._async_call(f"_{self._type}_{STATE_OFF}", STATE_OFF, **kwargs)
-
+        await self._async_call(f"_{self._type.value}_{STATE_OFF}", STATE_OFF, **kwargs)
+    
     async def _async_call(self, method: str, state: str, **kwargs: Any) -> None:
-        """Async turn action
-
+        """Async turn action.
+    
         :param method: str: Call method
         :param state: str: Call state
         :param kwargs: Any: Any arguments
         """
-
-        if action := getattr(self, method):
+        if action := getattr(self, method, None):
             await action(**kwargs)
-
+    
+            # Update state
             self._updater.data[f"{self._attr_device_code}_{ATTR_LIGHT_STATE}"] = (
                 state == STATE_ON
             )
             self._attr_is_on = state == STATE_ON
-
+    
+            # Handle brightness update
             if ATTR_BRIGHTNESS in kwargs:
                 self._attr_brightness = kwargs[ATTR_BRIGHTNESS]
                 self._updater.data[
                     f"{self._attr_device_code}_{ATTR_LIGHT_BRIGHTNESS}"
                 ] = self._attr_brightness
-
+    
+            # Handle RGBW color update
             if ATTR_RGBW_COLOR in kwargs:
                 self._attr_rgbw_color = kwargs[ATTR_RGBW_COLOR]
                 self._updater.data[
@@ -328,7 +328,8 @@ class LedFxLight(LedFxEntity, LightEntity):
                 ] = rgbw_to_hex(
                     self._attr_rgbw_color
                 )  # type: ignore
-
+    
+            # Update extra state attributes
             self._attr_extra_state_attributes = {
                 code: value
                 for code, value in self._updater.data.get(
@@ -338,8 +339,12 @@ class LedFxLight(LedFxEntity, LightEntity):
             } | self._updater.data.get(
                 f"{self._attr_device_code}_{ATTR_LIGHT_CONFIG}", {}
             )
-
+    
+            # Notify listeners if no brightness or color updates
             if ATTR_BRIGHTNESS not in kwargs and ATTR_RGBW_COLOR not in kwargs:
                 self._updater.async_update_listeners()
-
+    
+            # Write the updated state to Home Assistant
             self.async_write_ha_state()
+        else:
+            _LOGGER.error("Method %s not found on LedFxLight", method)
